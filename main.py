@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import os
 import time
 import flask
 from db import DatabaseManager
@@ -39,9 +40,15 @@ def get_db_manager():
     return flask.g.db_mgr
 
 @app.teardown_request
-def request_cleanup():
+def request_cleanup(ex):
     if hasattr(flask.g, 'db_mgr'):
         flask.g.db_mgr.disconnect()
+
+@jwt.token_in_blacklist_loader
+def check_if_token_in_blacklist(decrypted_token):
+    global blacklist
+    jti = decrypted_token['jti']
+    return jti in blacklist
 
 @app.route('/access-tokens', methods=['POST'])
 def api_login():
@@ -65,8 +72,8 @@ def api_login():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_refresh_token_required
 @app.route('/access-tokens', methods=['DELETE'])
+@jwt_refresh_token_required
 def api_logout():
     """
     User logout
@@ -82,8 +89,8 @@ def api_logout():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_refresh_token_required
 @app.route('/access-tokens/refresh', methods=['POST'])
+@jwt_refresh_token_required
 def api_refresh_token():
     """
     Refresh JWT
@@ -97,8 +104,8 @@ def api_refresh_token():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_required
 @app.route('/me', methods=['GET'])
+@jwt_required
 def api_me():
     """
     Get current user's info
@@ -143,8 +150,8 @@ def api_signup():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_required
 @app.route('/ideas', methods=['POST'])
+@jwt_required
 def api_create_idea():
     """
     Create idea
@@ -173,8 +180,8 @@ def api_create_idea():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_required
 @app.route('/ideas/<id>', methods=['DELETE'])
+@jwt_required
 def api_delete_idea(id):
     """
     Delete idea
@@ -194,8 +201,8 @@ def api_delete_idea(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_required
 @app.route('/ideas/<id>', methods=['PUT'])
+@jwt_required
 def api_update_idea(id):
     try:
         content = validate_content(request.json.get('content', None))
@@ -218,15 +225,15 @@ def api_update_idea(id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@jwt_required
 @app.route('/ideas', methods=['GET'])
+@jwt_required
 def api_get_ideas():
     try:
         email = get_jwt_identity()
         db = get_db_manager()
 
         page = int(request.args.get('page', 1)) - 1
-        if not page or page < 0:
+        if page < 0:
             raise ValueError('Invalid page')
 
         ideas = db.get_user_ideas(email, page)
@@ -245,4 +252,6 @@ def headers_fixup(response):
 
 if __name__ == '__main__':
     DatabaseManager(db_path, create_db=True).disconnect()
-    app.run(debug=True)
+
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)

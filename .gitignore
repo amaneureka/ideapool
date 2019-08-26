@@ -1,1 +1,3 @@
 *.db
+cm-quiz/
+__pycache__/

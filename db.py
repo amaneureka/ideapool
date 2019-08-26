@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import hashlib
 import sqlite3
 
 class DatabaseManager:
@@ -12,10 +13,11 @@ class DatabaseManager:
 
     def __create_database_table(self):
         conn = self.connect()
-        conn.execute(open(self.SCHEMA_FILE).read(-1))
+        conn.executescript(open(self.SCHEMA_FILE).read(-1))
         conn.commit()
 
     def check_user_credentials(self, email, passwd):
+        passwd = hashlib.md5(passwd.encode('utf-8')).hexdigest()
         conn = self.connect()
         cursor = conn.cursor()
         cursor.execute('SELECT * FROM users WHERE email = ?', [email])
@@ -39,7 +41,7 @@ class DatabaseManager:
         cursor = conn.cursor()
         ideas = []
         cursor.execute('''
-                        SELECT *, (impact + ease + confidence) / 3 as avg_score
+                        SELECT *, (impact + ease + confidence) / 3.0 as avg_score
                         FROM ideas WHERE created_by = ?
                         ORDER BY avg_score
                         DESC LIMIT 10
@@ -60,7 +62,7 @@ class DatabaseManager:
         conn = self.connect()
         cursor = conn.cursor()
         cursor.execute('''
-                        SELECT *, (impact + ease + confidence) / 3 as avg_score
+                        SELECT *, (impact + ease + confidence) / 3.0 as avg_score
                         FROM ideas WHERE id = ?
                        ''', [id])
         data = None
@@ -82,6 +84,7 @@ class DatabaseManager:
 
         status = True
         try:
+            passwd = hashlib.md5(passwd.encode('utf-8')).hexdigest()
             cursor.execute('INSERT INTO users(name, email, password) VALUES(?, ?, ?)', (name, email, passwd))
             cursor.close()
             conn.commit()
@@ -112,6 +115,7 @@ class DatabaseManager:
         status = True
         try:
             cursor.execute('DELETE FROM ideas WHERE id = ? AND created_by = ?', (id, email))
+            conn.commit()
             status = cursor.rowcount > 0
         except Exception:
             status = False
@@ -138,7 +142,8 @@ class DatabaseManager:
         return self.db_conn
 
     def disconnect(self):
-        db_conn = self.db_conn
-        self.db_conn = None
-        db_conn.close()
+        if self.db_conn:
+            db_conn = self.db_conn
+            self.db_conn = None
+            db_conn.close()
         return True
